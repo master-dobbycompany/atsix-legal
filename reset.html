@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>여섯시 — 비밀번호 재설정</title>
+<link rel="stylesheet" href="assets/legal.css">
+<style>
+  input { width:100%; padding:12px; border:1px solid #E5DFD8; border-radius:12px;
+          font:inherit; margin-top:8px; }
+  button { width:100%; padding:14px; border:0; border-radius:12px; background:#F2543D;
+           color:#fff; font:inherit; font-weight:700; margin-top:14px; cursor:pointer; }
+  button:disabled { opacity:.5; }
+  .msg { margin-top:14px; padding:12px; border-radius:12px; font-size:14px; }
+  .ok { background:#E0F3EC; color:#0E8C6D; }
+  .err { background:#FBE9E9; color:#C0392B; }
+</style>
+</head>
+<body>
+<main>
+  <h1>비밀번호 재설정</h1>
+  <p>새 비밀번호를 정해주세요. 정한 뒤 앱에서 새 비밀번호로 로그인하시면 돼요.</p>
+
+  <div id="form">
+    <input id="pw" type="password" placeholder="새 비밀번호 (6자 이상)" autocomplete="new-password">
+    <input id="pw2" type="password" placeholder="새 비밀번호 확인" autocomplete="new-password">
+    <button id="go">변경하기</button>
+  </div>
+  <div id="msg"></div>
+</main>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// anon 키는 공개 전제다. 이 페이지가 할 수 있는 일은 메일 링크로 받은 세션의
+// 비밀번호를 바꾸는 것뿐이고, 그 세션은 Supabase 가 발급·검증한다.
+const sb = createClient(
+  'https://snszyugzoxektvcyydya.supabase.co',
+  'sb_publishable_3a09zQjtuhXN8CV0g7NnaQ_kGTtqlNC',
+  { auth: { detectSessionInUrl: true, flowType: 'pkce' } }
+);
+
+const $ = (id) => document.getElementById(id);
+function say(text, cls) {
+  $('msg').className = 'msg ' + cls;
+  $('msg').textContent = text;
+}
+
+// 링크가 만료됐거나 직접 열었으면 세션이 없다. 그때는 폼을 감춘다 —
+// 입력하게 해놓고 실패시키는 것보다 낫다.
+const { data: { session } } = await sb.auth.getSession();
+if (!session) {
+  $('form').style.display = 'none';
+  say('링크가 만료됐거나 올바르지 않아요. 앱에서 재설정 메일을 다시 요청해주세요.', 'err');
+}
+
+$('go').onclick = async () => {
+  const pw = $('pw').value, pw2 = $('pw2').value;
+  if (pw.length < 6) return say('비밀번호는 6자 이상이어야 해요.', 'err');
+  if (pw !== pw2) return say('두 비밀번호가 서로 달라요.', 'err');
+
+  $('go').disabled = true;
+  const { error } = await sb.auth.updateUser({ password: pw });
+  $('go').disabled = false;
+  if (error) return say('바꾸지 못했어요: ' + error.message, 'err');
+
+  $('form').style.display = 'none';
+  say('비밀번호를 바꿨어요. 앱으로 돌아가 새 비밀번호로 로그인해주세요.', 'ok');
+};
+</script>
+</body>
+</html>
