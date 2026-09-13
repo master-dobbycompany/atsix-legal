@@ -77,6 +77,11 @@ async function sendMail() {
   $('send').disabled = false;
   // 계정이 있든 없든 같은 문구를 보여준다 — 응답이 갈리면 가입 여부가 새어 나간다.
   if (error) console.warn(error);
+  // 요청 한도는 계정 유무와 무관하게 걸리므로 알려도 가입 여부가 새지 않는다.
+  // 알리지 않으면 "보냈어요" 를 믿고 오지 않는 메일을 기다린다.
+  if (error && (error.status === 429 || String(error.code).startsWith('over_'))) {
+    return say('메일을 너무 자주 요청했어요. 잠시 후 다시 시도해주세요.', 'err');
+  }
   say('메일을 보냈어요. 메일의 링크를 이 기기에서 열어주세요.', 'ok');
 }
 
@@ -112,7 +117,18 @@ $('go').onclick = async () => {
   $('go').disabled = true;
   const { error } = await sb.auth.updateUser({ password: pw });
   $('go').disabled = false;
-  if (error) return say('바꾸지 못했어요: ' + error.message, 'err');
+  if (error) {
+    // 원문(영어)을 띄우지 않는다. 앱의 lib/data/error_messages.dart 와 같은 문구.
+    console.warn(error);
+    const byCode = {
+      same_password: '지금과 다른 비밀번호를 입력해주세요.',
+      weak_password: '비밀번호가 너무 약해요. 더 길게 만들어주세요.',
+      session_expired: '링크가 만료됐어요. 새로고침 후 메일을 다시 요청해주세요.',
+      session_not_found: '링크가 만료됐어요. 새로고침 후 메일을 다시 요청해주세요.',
+      over_request_rate_limit: '요청이 너무 많아요. 잠시 후 다시 시도해주세요.',
+    };
+    return say(byCode[error.code] || '바꾸지 못했어요. 잠시 후 다시 시도해주세요.', 'err');
+  }
 
   $('form').style.display = 'none';
   // 바꾼 뒤에는 세션을 남기지 않는다 — 남기면 다음 방문자가 또 바꿀 수 있다.
