@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>여섯시 — 이메일 확인</title>
+<link rel="stylesheet" href="assets/legal.css">
+<style>
+  input { width:100%; padding:12px; border:1px solid #E5DFD8; border-radius:12px;
+          font:inherit; margin-top:8px; }
+  button { width:100%; padding:14px; border:0; border-radius:12px; background:#F2543D;
+           color:#fff; font:inherit; font-weight:700; margin-top:14px; cursor:pointer; }
+  button:disabled { opacity:.5; }
+  .msg { margin-top:14px; padding:12px; border-radius:12px; font-size:14px; }
+  .ok { background:#E0F3EC; color:#0E8C6D; }
+  .err { background:#FBE9E9; color:#C0392B; }
+</style>
+</head>
+<body>
+<main>
+  <h1>이메일 확인</h1>
+
+  <div id="msg"></div>
+
+  <!-- 링크가 만료됐거나 링크 없이 들어왔을 때만 -->
+  <div id="ask" style="display:none">
+    <p>가입한 이메일을 적으면 확인 메일을 다시 보내드려요.</p>
+    <input id="email" type="email" placeholder="가입한 이메일" autocomplete="username">
+    <button id="send">확인 메일 다시 받기</button>
+  </div>
+</main>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// 가입 확인 메일의 링크가 도착하는 곳 (LAUNCH_CHECKLIST B7).
+//
+// 확인은 링크를 누르는 순간 Supabase 의 /verify 에서 끝난다. 여기 오는 ?code= 는
+// 로그인 세션을 만드는 용도인데, 가입을 앱에서 했으면 code_verifier 가 앱에 있어서
+// 이 브라우저에서는 교환할 수 없다(reset.html 과 같은 PKCE 사정). 교환할 필요도 없다 —
+// 확인이 끝났다고 알리고 앱에서 로그인하게 한다. 그래서 detectSessionInUrl 을 끈다.
+const params = new URLSearchParams(location.search);
+const hash = new URLSearchParams(location.hash.slice(1));
+const fromLink = params.has('code');
+const errorCode = params.get('error_code') || hash.get('error_code');
+const hasError = errorCode || params.has('error') || hash.has('error');
+
+const sb = createClient(
+  'https://snszyugzoxektvcyydya.supabase.co',
+  'sb_publishable_3a09zQjtuhXN8CV0g7NnaQ_kGTtqlNC',
+  { auth: { detectSessionInUrl: false, persistSession: false } }
+);
+
+const $ = (id) => document.getElementById(id);
+function say(text, cls) {
+  $('msg').className = 'msg ' + cls;
+  $('msg').textContent = text;
+}
+
+if (fromLink && !hasError) {
+  say('이메일이 확인됐어요. 앱으로 돌아가 로그인해주세요.', 'ok');
+} else {
+  $('ask').style.display = 'block';
+  if (hasError) {
+    // otp_expired: 오래됐거나 이미 한 번 누른 링크. 이미 확인된 계정이면 그대로 로그인하면 된다.
+    say('링크가 만료됐거나 이미 사용됐어요. 이미 확인했다면 앱에서 바로 로그인하면 되고, 아니라면 아래에서 다시 받아주세요.', 'err');
+  }
+}
+
+async function resend() {
+  const email = $('email').value.trim();
+  if (!email.includes('@')) return say('이메일을 확인해주세요.', 'err');
+  $('send').disabled = true;
+  const { error } = await sb.auth.resend({
+    type: 'signup',
+    email,
+    options: { emailRedirectTo: location.origin + location.pathname },
+  });
+  $('send').disabled = false;
+  if (error) console.warn(error);
+  // 요청 한도는 계정 유무와 무관하므로 알려도 가입 여부가 새지 않는다.
+  if (error && (error.status === 429 || String(error.code).startsWith('over_'))) {
+    return say('메일을 너무 자주 요청했어요. 잠시 후 다시 시도해주세요.', 'err');
+  }
+  // 계정이 있든 없든, 이미 확인됐든 같은 문구 — 응답이 갈리면 가입 여부가 새어 나간다.
+  say('아직 확인 전인 계정이라면 메일을 다시 보냈어요. 메일함과 스팸함을 확인해주세요.', 'ok');
+}
+
+$('send').onclick = resend;
+$('email').addEventListener('keydown', (e) => { if (e.key === 'Enter') resend(); });
+</script>
+</body>
+</html>
