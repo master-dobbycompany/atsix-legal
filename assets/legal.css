@@ -31,4 +31,37 @@ a { color: #F2543D; }
 }
 footer { margin-top: 48px; font-size: 13px; color: #8A8178; }
 nav.docs a { display: block; font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.shots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 12px 0 8px;
+}
+figure.shot {
+  background: #FFFFFF;
+  border: 1px solid #E5DFD8;
+  border-radius: 16px;
+  padding: 14px 14px 12px;
+  margin: 0;
+}
+figure.shot img {
+  width: 100%;
+  max-width: 280px;
+  display: block;
+  margin: 0 auto;
+}
+figure.shot figcaption {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #1F1B16;
+}
+figure.shot figcaption strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+@media (max-width: 560px) {
+  .shots { grid-template-columns: 1fr; }
+}
 @media (max-width: 480px) { body { font-size: 15px; } h1 { font-size: 22px; } }
