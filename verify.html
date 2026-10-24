@@ -51,6 +51,15 @@ async function start() {
       identityVerificationId: id,
       channelKey,
       redirectUrl: base + '?done=1',
+      // KG이니시스 통합인증은 flgFixedUser 가 없으면 창을 열지 않는다. 고객 정보를 미리 넘기지 않는다(N).
+      // FRGNDInfo N: 네이버·카카오에서 검증되지 않는 성별·외국인 입력 칸을 띄우지 않는다(쓰지 않는 값).
+      bypass: {
+        inicisUnified: {
+          flgFixedUser: 'N',
+          FRGNDInfo: 'N',
+          logoUrl: location.origin + location.pathname.replace(/verify\.html$/, '') + 'assets/inicis_logo.png',
+        },
+      },
     });
     const out = { identityVerificationId: id };
     if (res && res.code) {
