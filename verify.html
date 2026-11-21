@@ -19,10 +19,11 @@
 <p id="msg">본인확인 창을 여는 중이에요…</p>
 <p class="sub" id="sub">여섯시 앱 안에서 열린 페이지예요.</p>
 <script type="module">
-// 앱(웹뷰)이 ?store=&channel=&id= 로 연다. 끝나면 같은 주소에 ?done=1 을 붙여 돌아오고,
-// 앱은 그 주소를 가로채 결과를 받는다(페이지를 실제로 그리지 않는다).
-// 모바일에서는 SDK 가 본인확인 페이지로 넘어갔다가 redirectUrl 로 돌아오며
-// identityVerificationId · code · message 를 붙인다. PC 처럼 돌아오지 않고 끝나는 환경은 아래에서 직접 넘긴다.
+// 앱(웹뷰)이 ?id= 로 연다. store·channel 은 주소에서 받지 않는다 —
+// 공식 도메인에서 남의 포트원 상점으로 창을 띄우는 길을 막는다(2026-11-21).
+// 값은 app_config(공개 전제)에서 읽는다. 끝나면 ?done=1 로 돌아오고 앱이 가로챈다.
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+
 const q = new URLSearchParams(location.search);
 const base = location.origin + location.pathname;
 const msg = document.getElementById('msg');
@@ -32,17 +33,50 @@ function finish(params) {
   location.replace(base + '?' + new URLSearchParams({ done: '1', ...params }).toString());
 }
 
+async function loadPortoneConfig() {
+  const sb = createClient(
+    'https://snszyugzoxektvcyydya.supabase.co',
+    'sb_publishable_3a09zQjtuhXN8CV0g7NnaQ_kGTtqlNC',
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  const { data, error } = await sb
+    .from('app_config')
+    .select('key, value')
+    .in('key', ['portone_store_id', 'portone_identity_channel_key']);
+  if (error) throw error;
+  const map = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
+  const read = (k) => {
+    const v = map[k];
+    if (v == null) return '';
+    return typeof v === 'string' ? v : String(v).replace(/^"|"$/g, '');
+  };
+  return { storeId: read('portone_store_id'), channelKey: read('portone_identity_channel_key') };
+}
+
 async function start() {
   if (q.get('done') === '1') {
     msg.textContent = '본인확인을 마쳤어요. 앱으로 돌아가는 중이에요…';
     sub.textContent = '';
     return;
   }
-  const storeId = q.get('store') || '';
-  const channelKey = q.get('channel') || '';
   const id = q.get('id') || '';
-  if (!storeId || !channelKey || !/^atsix-[0-9a-f-]{36}-[a-z0-9]{8,32}$/.test(id)) {
+  if (!/^atsix-[0-9a-f-]{36}-[a-z0-9]{8,32}$/.test(id)) {
     msg.textContent = '잘못된 요청이에요. 앱에서 다시 시도해 주세요.';
+    return;
+  }
+  let storeId = '';
+  let channelKey = '';
+  try {
+    const cfg = await loadPortoneConfig();
+    storeId = cfg.storeId;
+    channelKey = cfg.channelKey;
+  } catch (e) {
+    console.warn(e);
+    msg.textContent = '인증 연결을 준비하고 있어요. 잠시 뒤 앱에서 다시 시도해 주세요.';
+    return;
+  }
+  if (!storeId || !channelKey) {
+    msg.textContent = '인증 연결을 준비하고 있어요. 잠시 뒤 앱에서 다시 시도해 주세요.';
     return;
   }
   try {
